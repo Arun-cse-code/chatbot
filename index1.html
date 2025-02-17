@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>University Chatbot</title>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        /* Basic Chatbot Styles */
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+            margin: 0;
+        }
+
+        #chatbox {
+            width: 400px;
+            height: 500px;
+            border: 1px solid #ccc;
+            padding: 20px;
+            background-color: #fff;
+            display: flex;
+            flex-direction: column;
+            border-radius: 8px;
+        }
+
+        #chat-log {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding-right: 10px;
+        }
+
+        #user-query {
+            width: 75%;
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        /* Stylish Buttons */
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #45a049;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .ask-btn i, .speak-btn i {
+            font-size: 24px;
+        }
+
+        /* Animation for chat bubble */
+        .chat-bubble {
+            animation: slide-in 0.3s ease-in-out;
+        }
+
+        @keyframes slide-in {
+            0% { opacity: 0; transform: translateX(-50px); }
+            100% { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div id="chatbox">
+    <div id="chat-log"></div>
+    <div class="button-container">
+        <input type="text" id="user-query" placeholder="Ask a question..." oninput="checkInput()" onkeydown="checkEnter(event)">
+        <button class="ask-btn" onclick="getAnswer()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+    <button class="speak-btn" onclick="startVoiceRecognition()"><i class="fas fa-microphone"></i></button>
+</div>
+
+<script>
+// FAQ Data
+const faq = {
+    "admission requirements": "To apply, you need to have passed your 12th-grade exams with a minimum of 60%.",
+    "working hours": "The university is open from 9 AM to 5 PM on weekdays.",
+    "scholarships": "You can apply for scholarships via the university's portal during the admissions process.",
+    "computer science courses": "The Computer Science department offers B.Tech, M.Tech, and Ph.D. programs.",
+    "campus facilities": "The campus offers state-of-the-art labs, a library, sports facilities, and hostels.",
+    "faculty contact": "You can find faculty contact information on the university's official website."
+};
+
+// Function to handle text input
+async function getAnswer() {
+    const query = document.getElementById('user-query').value.trim();
+    const chatLog = document.getElementById('chat-log');
+    
+    // Display user query in the chat log
+    chatLog.innerHTML += `<div class="chat-bubble user">User: ${query}</div>`;
+    chatLog.scrollTop = chatLog.scrollHeight;
+
+    // Check if the query matches any predefined FAQ
+    if (faq[query.toLowerCase()]) {
+        // Provide the FAQ answer
+        const answer = faq[query.toLowerCase()];
+        chatLog.innerHTML += `<div class="chat-bubble bot">Bot: ${answer}</div>`;
+    } else {
+        // If no FAQ match, get response from Gemini API
+        const response = await getGeminiResponse(query);
+        chatLog.innerHTML += `<div class="chat-bubble bot">Bot: ${response}</div>`;
+    }
+
+    document.getElementById('user-query').value = ''; // Clear input field
+    chatLog.scrollTop = chatLog.scrollHeight; // Scroll to the bottom
+}
+
+// Function to interact with Flask backend (Gemini API)
+async function getGeminiResponse(query) {
+    try {
+        const response = await fetch('http://127.0.0.1:5000/chat', { // Your Flask server URL
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: query
+            }),
+        });
+
+        const data = await response.json();
+        return data.response; // Return the bot response from Flask
+    } catch (error) {
+        console.error("Error fetching from Flask API:", error);
+        return "Sorry, something went wrong while fetching the answer.";
+    }
+}
+
+// Function to check if the input is empty
+function checkInput() {
+    const input = document.getElementById('user-query').value;
+    const button = document.querySelector('.ask-btn');
+    button.disabled = input.trim() === ''; // Disable button if input is empty
+}
+
+// Function to handle "Enter" key press and trigger the button click
+function checkEnter(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent default enter behavior (form submission)
+        getAnswer(); // Trigger the button click action
+    }
+}
+
+// Function to enable voice input
+function startVoiceRecognition() {
+    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.onresult = function(event) {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById('user-query').value = transcript;
+            getAnswer(); // Automatically call getAnswer with voice input
+        };
+        recognition.start();
+    } else {
+        alert("Speech Recognition is not supported in this browser.");
+    }
+}
+
+// Auto-generate greeting message when chatbot is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    const chatLog = document.getElementById('chat-log');
+    chatLog.innerHTML = `<div class="chat-bubble bot">Bot: Hello! I'm here to answer your university-related questions. Ask me anything!</div>`;
+});
+</script>
+
+</body>
+</html>
